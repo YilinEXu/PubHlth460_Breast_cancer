@@ -1,0 +1,94 @@
+PUBHLTH 460: Final project individual report
+================
+Elaine Xu
+11/19/2020
+
+For this project, my team mates and I were trying to find out if there
+exists a relationship between protein somatic mutation and cancer type,
+and the proteins that are relatively significant. We were using linear
+regression, heat map and Bonferroni correction to approach our goal. We
+used two datasets, which are 77\_cancer\_proteomes\_CPTAC\_itraq and
+clinical\_data\_breast\_cancer.
+
+``` r
+protein <-read.csv("77_cancer_proteomes_CPTAC_itraq.csv")
+dim(protein) #86 records, 12553 predictors
+clin <-read.csv("clinical_data_breast_cancer.csv")
+dim(clin) #105 Records, 30 clinical predictors/measurements
+```
+
+By observing the two datasets, we found out that the first column of the
+clinical dataset and the first row of the proteomics dataset are both
+represent the patient ID. Since the protein and patient names are not
+formatted exactly the same as needed for downstream analysis in two
+datasets.
+
+We first rewrite the patient ID in 77\_cancer dataset into the same form
+as the patient ID in clinical dataset. To combine the two datasets,
+first we rotate the 77\_cancer dataset table. We want the patient ID to
+be the first column, because it will make it easier to combine the two
+datasets. However, we didn’t find a way to do this in R, so we just
+rotate the table by copy the original dataset and paste it by using the
+“transform” into a new excel form. By changing the patient ID column
+in both datasets from factor to character, we joined the two table.
+
+``` r
+colnames(protein[0,4:ncol(protein)])
+#manipulate dataframe
+p1<-str_replace(colnames(protein[4:ncol(protein)]),"TCGA","")
+p2<-str_replace(p1,".\\d+$","")
+p3<-str_replace(p2,"^","TCGA-")
+p4 = str_replace(p3,"\\.","-")
+names(protein)[4:ncol(protein)] = p4
+protein = protein[,!duplicated(colnames(protein))]
+
+#edit column name 
+names(protein)[1] = "Complete.TCGA.ID"
+
+#save all 
+np<-as.character(protein[,1])
+
+#trim gen column
+protein<-protein[,c(1,4:83)]
+```
+
+``` r
+protein.t.test <-read.csv("protein.t_test.csv")
+
+#change the primary key from factor to character
+clin$Complete.TCGA.ID<-as.character(clin$Complete.TCGA.ID)
+protein.t.test$Complete.TCGA.ID<-as.character(protein.t.test$Complete.TCGA.ID)
+#join two table
+MASTER.test<- inner_join(protein.t.test,clin, by="Complete.TCGA.ID")
+#export data
+write.csv(MASTER.test,"MASTER.test.csv", row.names = TRUE)
+```
+
+``` r
+MASTER <-read.csv("MASTER.test.csv")
+#y is MASTER$PAM50.mRNA
+#x is all np variables
+
+#factor y 
+MASTER$PAM50.mRNA<-as.factor(MASTER$PAM50.mRNA)
+levels(MASTER$PAM50.mRNA)
+
+MASTER.try<-MASTER
+#delete na columns
+MASTER.try.omitna.df<-MASTER.try[ , colSums(is.na(MASTER.try)) == 0]
+```
+
+In the dataset, there has several missing data and some text data, such
+as patient’s gender. This makes the data hard to be analyzed, so we
+decide only use the data of level of protein which are all numbers and
+omit the proteins that have missing data. After cleaning the data, since
+we only want to analysis luminal A and luminal B, so we only leave rows
+that in the PAM50 column are luminal A or B.
+
+``` r
+#leave only rows where PAM50.mRNA==lumin A B
+MASTER.try.omitna.A.df<-MASTER.try.omitna.df[MASTER.try.omitna.df$PAM50.mRNA=="Luminal A",]
+MASTER.try.omitna.B.df<-MASTER.try.omitna.df[MASTER.try.omitna.df$PAM50.mRNA=="Luminal B",]
+MASTER.try.omitna.AB.df<-rbind(MASTER.try.omitna.A.df,MASTER.try.omitna.B.df)
+MASTER.try.omitna.AB.df
+```
